@@ -39,10 +39,11 @@
         console.log("Microphones disponibles :", mics);
 
        
-
+        var use;
           mics.forEach((mic, i) => {
             const line = document.createElement("div");
             document.getElementById("listinput").innerHTML += mic.label;
+            use = mic;
           });
 
         const usbMic = mics.find(d => d.label.toLowerCase().includes('usb')) || mics[0];
@@ -56,7 +57,7 @@
 
          const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          deviceId: usbMic.deviceId,
+          deviceId: use.deviceId,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
