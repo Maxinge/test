@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Audio Simple</title>
+</head>
+<body>
+
+<h1>🎧</h1>
+<button id="start">Démarrer</button>
+
+<p>Volume</p>
+<input id="volume" type="range" min="0" max="3" step="0.01" value="1">
+
+<p>Gain (disto)</p>
+<input id="gain" type="range" min="0" max="80" value="50">
+
+<p>Bass</p>
+<input id="bass" type="range" min="-12" max="12" step="0.1" value="0">
+
+<p>Mids</p>
+<input id="mids" type="range" min="-12" max="12" step="0.1" value="5">
+
+<p>Treble</p>
+<input id="treble" type="range" min="-12" max="12" step="0.1" value="8">
+
+<p>Reverb Mix</p>
+<input id="reverb" type="range" min="0" max="1" step="0.01" value="0.2">
+
+<div id="listinput">qq</div>
+
+  <script>
+    let ctx, volumeNode;
+
+    document.getElementById("start").onclick = async () => {
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        console.log("Microphones disponibles :", mics);
+
+       
+
+          mics.forEach((mic, i) => {
+            const line = document.createElement("div");
+            document.getElementById("listinput").innerHTML += mic.label;
+          });
+
+        const usbMic = mics.find(d => d.label.toLowerCase().includes('usb')) || mics[0];
+
+        if (!usbMic) { alert("Pas de micro trouvé !"); return; }
+
+        ctx = new AudioContext({
+            latencyHint: "interactive",
+            sampleRate: 48000
+        });
+
+         const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: usbMic.deviceId,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          latency: 0
+        }
+      });
+       const source = ctx.createMediaStreamSource(stream);
+
+         // Node disto
+          distortion = ctx.createWaveShaper();
+          distortion.curve = makeDistortionCurve(1);
+          distortion.oversample = '4x';
+
+        const merger = ctx.createChannelMerger(2);
+
+        volumeNode = ctx.createGain();
+        volumeNode.gain.value = 1;
+
+                // EQ simple : bass / mids / treble
+          bassEQ = ctx.createBiquadFilter();
+          bassEQ.type = "lowshelf";
+          bassEQ.frequency.value = 120;
+          bassEQ.gain.value = 0;
+
+          midsEQ = ctx.createBiquadFilter();
+          midsEQ.type = "peaking";
+          midsEQ.frequency.value = 800;
+          midsEQ.Q.value = 1;
+          midsEQ.gain.value = 5;
+
+          trebleEQ = ctx.createBiquadFilter();
+          trebleEQ.type = "highshelf";
+          trebleEQ.frequency.value = 3000;
+          trebleEQ.gain.value = 8;
+
+          // Reverb simple
+          delay = ctx.createDelay();
+          delay.delayTime.value = 0.03; // 30ms
+
+          reverbGain = ctx.createGain();
+          reverbGain.gain.value = 0.5; // mix de la reverb
+
+        source.connect(delay);
+        delay.connect(reverbGain);
+
+        reverbGain.connect(distortion);
+
+        source.connect(distortion);
+        distortion.connect(bassEQ);
+        bassEQ.connect(midsEQ);
+        midsEQ.connect(trebleEQ);
+        
+
+        // On duplique le signal mono sur L et R
+        trebleEQ.connect(merger, 0, 0);
+        trebleEQ.connect(merger, 0, 1);
+
+        
+        merger
+          .connect(volumeNode)
+          .connect(ctx.destination);
+
+    };
+
+    document.getElementById("volume").oninput = e => { if(volumeNode) volumeNode.gain.value = e.target.value; };
+    document.getElementById("gain").oninput = e => { if(distortion) distortion.curve = makeDistortionCurve(Number(e.target.value)); };
+    document.getElementById("bass").oninput = e => { if(bassEQ) bassEQ.gain.value = Number(e.target.value); };
+    document.getElementById("mids").oninput = e => { if(midsEQ) midsEQ.gain.value = Number(e.target.value); };
+    document.getElementById("treble").oninput = e => { if(trebleEQ) trebleEQ.gain.value = Number(e.target.value); };
+    document.getElementById("reverb").oninput = e => { if(reverbGain) delay.delayTime.value = Number(e.target.value); };
+
+    function makeDistortionCurve(amount) {
+      const n_samples = 44100;
+      const curve = new Float32Array(n_samples);
+      const deg = Math.PI / 180;
+
+      for (let i = 0; i < n_samples; i++) {
+        const x = i * 2 / n_samples - 1;
+        curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
+      }
+      return curve;
+    }
+
+  </script>
+
+</body>
+</html>
