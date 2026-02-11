@@ -33,6 +33,14 @@
 
     document.getElementById("start").onclick = async () => {
 
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        console.log("Microphones disponibles :", mics);
+
+        const usbMic = mics.find(d => d.label.toLowerCase().includes('usb')) || mics[0];
+
+        if (!usbMic) { alert("Pas de micro trouvé !"); return; }
+
         ctx = new AudioContext({
             latencyHint: "interactive",
             sampleRate: 48000
@@ -40,6 +48,7 @@
 
          const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          deviceId: usbMic.deviceId,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
